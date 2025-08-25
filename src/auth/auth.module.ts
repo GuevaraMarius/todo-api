@@ -4,17 +4,22 @@ import { PassportModule } from '@nestjs/passport';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { User } from 'src/user/entities/user.entity';
 import { EmailService } from 'src/services/email.service';
+import { SequelizeModule } from '@nestjs/sequelize';
+import { User } from 'src/user/user.model';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User]),
+    SequelizeModule.forFeature([User]),
     PassportModule,
-    JwtModule.register({
-      secret: process.env.JWT_KEY,
-      signOptions: { expiresIn: '60m' },
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        secret: configService.get<string>('JWT_KEY'),
+        signOptions: { expiresIn: '60m' },
+      }),
     }),
   ],
   providers: [AuthService, JwtStrategy, EmailService],

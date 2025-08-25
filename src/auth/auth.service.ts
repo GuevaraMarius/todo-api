@@ -1,41 +1,48 @@
 import { Injectable, ConflictException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { User } from 'src/user/entities/user.entity';
+import { InjectModel } from '@nestjs/sequelize';
+import { User } from 'src/user/user.model';
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly jwtService: JwtService,
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
+    @InjectModel(User)
+    private readonly userModel: typeof User,
   ) {}
 
   async validateUser(email: string, pass: string): Promise<any> {
-    const user = await this.userRepository.findOne({ where: { email } });
-    if (user && bcrypt.compareSync(pass, user.password)) {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { password, ...result } = user;
-      return result;
+    try {
+      console.log('Validating user:', email);
+      const user = await this.userModel.findOne({ where: { email } });
+      if (user && bcrypt.compareSync(pass, user.password)) {
+        const userObj = user.get({ plain: true });
+        delete userObj.password;
+        return userObj;
+      }
+      return null;
+    } catch (error) {
+      console.error('validateUser error:', error);
+      throw error;
     }
-    return null;
   }
 
   async login(user: any) {
-    const payload = { username: user.username, sub: user.id, role: user.role };
+    const payload = { email: user.email, sub: user.id, role: user.role };
+    console.log('JWT payload:', payload);
+    const token = this.jwtService.sign(payload);
+    console.log('JWT token:', token);
     return {
       statusCode: 200,
       status: 'success',
-      message: 'Logged in succesfully',
-      access_token: this.jwtService.sign(payload),
+      message: 'Logged in successfully',
+      access_token: token,
     };
   }
 
   async register(userDto: any) {
-    // Check if user already exists
-    const existingUser = await this.userRepository.findOne({
+    const existingUser = await this.userModel.findOne({
       where: { email: userDto.email },
     });
     if (existingUser) {
@@ -43,16 +50,17 @@ export class AuthService {
     }
 
     const hashedPassword = bcrypt.hashSync(userDto.password, 10);
-    const newUser = this.userRepository.create({
+
+    const newUser = await this.userModel.create({
       ...userDto,
       password: hashedPassword,
     });
-    const savedUser = (await this.userRepository.save(
-      newUser,
-    )) as unknown as User;
 
-    return savedUser;
+    return newUser;
   }
 
-  async logout(): Promise<void> {}
+  async logout(): Promise<void> {
+    // With JWT, logout is usually handled client-side
+    return;
+  }
 }

@@ -1,0 +1,5 @@
+
+# Ignore JS config files not included in tsconfig
+
+src/config/sequelize.js
+
